@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Energy Retrofit Dashboard - Cesium</title>
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.125/Build/Cesium/Cesium.js"></script>
+  <link href="https://cesium.com/downloads/cesiumjs/releases/1.125/Build/Cesium/Widgets/widgets.css" rel="stylesheet" />
+  <style>
+    html, body, #cesiumContainer {
+      margin: 0; padding: 0; height: 100%; width: 100%;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      overflow: hidden;
+      background-color: #121212;
+      color: #eee;
+    }
+
+    #cesiumContainer {
+      position: absolute;
+      top: 0; bottom: 0; left: 0;
+      right: 350px; /* space for panel */
+    }
+
+    #dashboardPanel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 350px;
+      height: 100vh;
+      background: #1f1f1f;
+      border-left: 3px solid #4caf50;
+      box-shadow: -2px 0 15px rgba(0,0,0,0.9);
+      padding: 25px 30px;
+      box-sizing: border-box;
+      overflow-y: auto;
+      user-select: none;
+      z-index: 9999;
+      color: #ddd;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+
+    #dashboardPanel h3 {
+      margin-top: 0;
+      font-weight: 700;
+      font-size: 24px;
+      color: #4caf50;
+      user-select: text;
+      min-height: 32px;
+    }
+
+    #energyLabel {
+      font-size: 42px;
+      font-weight: 900;
+      color: #a5d6a7;
+      margin: 8px 0 20px 0;
+      user-select: text;
+    }
+
+    #dashboardPanel p {
+      margin: 10px 0;
+      font-size: 16px;
+      color: #ccc;
+      user-select: text;
+    }
+
+    #dashboardPanel strong {
+      color: #a5d6a7;
+    }
+
+    #energyLabelCircleContainer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 20px;
+  user-select: none;
+  justify-content: flex-start; /* aligned left */
+}
+
+.energyLabelCircle {
+  width: 38px;
+  height: 38px;
+  font-size: 13px;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-weight: 700;
+  cursor: pointer;
+  color: white;
+  border: 2.5px solid transparent;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  user-select: none;
+  box-shadow: 0 0 4px rgba(0,0,0,0.5);
+}
+
+    .energyLabelCircle:hover {
+      border-color: #81c784;
+      box-shadow: 0 0 12px #81c784;
+    }
+
+    .energyLabelCircle.selected {
+      border-color: #4caf50;
+      box-shadow: 0 0 14px #4caf50;
+    }
+
+    .Aplusplusplus { background-color: #006837; } /* A+++ */
+    .Aplusplus { background-color: #39B54A; }     /* A++ */
+    .Aplus { background-color: #8BC540; }          /* A+ */
+    .A { background-color: #F4E82E; color: black; }
+    .B { background-color: #F8B919; color: black; }
+    .C { background-color: #F3830E; }
+    .D { background-color: #EC5125; }
+    .E { background-color: #DC2929; }
+    .F { background-color: #A62626; }
+    .G { background-color: #8C1C1C; }
+
+    #legend {
+      margin-top: 10px;
+      user-select: text;
+      color: #ccc;
+      font-size: 14px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: center;
+      border-top: 1px solid #333;
+      padding-top: 12px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+
+    .legend-color {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      box-shadow: 0 0 5px rgba(0,0,0,0.4);
+      flex-shrink: 0;
+    }
+
+    .legend-Aplusplusplus { background-color: #006837; }
+    .legend-Aplusplus { background-color: #39B54A; }
+    .legend-Aplus { background-color: #8BC540; }
+    .legend-A { background-color: #F4E82E; }
+    .legend-B { background-color: #F8B919; }
+    .legend-C { background-color: #F3830E; }
+    .legend-D { background-color: #EC5125; }
+    .legend-E { background-color: #DC2929; }
+    .legend-F { background-color: #A62626; }
+    .legend-G { background-color: #8C1C1C; }
+
+    a {
+      color: #81c784;
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+
+    /* Toggle switch container */
+    #selectAllToggleContainer {
+      margin-top: 15px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      user-select: none;
+      
+    }
+
+    /* The switch - the box around the slider */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 48px;
+      height: 24px;
+    }
+
+    /* Hide default HTML checkbox */
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    /* The slider */
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #555;
+      transition: 0.4s;
+      border-radius: 24px;
+      box-shadow: inset 0 0 4px #0008;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: #eee;
+      transition: 0.4s;
+      border-radius: 50%;
+      box-shadow: 0 0 6px #0004;
+    }
+
+    input:checked + .slider {
+      background-color: #4caf50;
+      box-shadow: 0 0 8px #4caf5088;
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(24px);
+      background-color: #e0e0e0;
+      box-shadow: 0 0 10px #2e7d3222;
+    }
+
+    /* Label text for toggle */
+    #selectAllLabel {
+      font-size: 15px;
+      font-weight: 600;
+      color: #a5d6a7;
+      cursor: pointer;
+      user-select: none;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+</head>
+<body>
+  <div id="cesiumContainer"></div>
+
+  <div id="dashboardPanel" role="region" aria-label="Energy Retrofit Dashboard">
+    <div id="dashboardContent">
+      <h3 id="buildingId"></h3>
+
+      <p>Current Energy Label:</p>
+      <div id="energyLabel">N/A</div>
+
+      <!-- These will be hidden in select all mode -->
+      <div id="energyUsageFields">
+        <p>Electricity Avg: <span id="electricity">N/A</span> kWh</p>
+        <p>Net Electricity Avg: <span id="netElectricity">N/A</span> kWh</p>
+        <p>Gas Avg: <span id="gasUsage">N/A</span> m³</p>
+      </div>
+
+      <p><strong>Select target retrofit label:</strong></p>
+      <div id="energyLabelCircleContainer" aria-label="Select target retrofit label"></div>
+
+      <div id="selectAllToggleContainer">
+        <label class="switch" for="selectAllToggle">
+          <input type="checkbox" id="selectAllToggle" aria-checked="false" />
+          <span class="slider"></span>
+        </label>
+        <label id="selectAllLabel" for="selectAllToggle">Select All Buildings with this Energy Label</label>
+      </div>
+
+     <p>Estimated Retrofit Cost: €<span id="retrofitCost">0</span></p>
+     <div id="subsidyLink"></div>
+     <canvas id="benefitChart" style="margin-top: 20px; background: #2c2c2c; border-radius: 8px;" height="200"></canvas>
+<div style="margin-top: 15px;">
+  <p>💶 Estimated Annual Savings: €<span id="annualSavings">0</span></p>
+  <p>⏳ Payback Period: <span id="paybackPeriod">–</span> years</p>
+  <p>🌱 CO₂ Reduction: <span id="co2Savings">0</span> kg/year</p>
+</div>
+
+
+    </div>
+    <p id="labelSummary" style="margin-top: 10px; color: #ccc; font-weight: 600;"></p>
+    
+   
+
+    <div id="legend" aria-label="Energy Label Color Legend">
+      <div class="legend-item"><div class="legend-color legend-Aplusplusplus"></div> A+++ </div>
+      <div class="legend-item"><div class="legend-color legend-Aplusplus"></div> A++ </div>
+      <div class="legend-item"><div class="legend-color legend-Aplus"></div> A+ </div>
+      <div class="legend-item"><div class="legend-color legend-A"></div> A </div>
+      <div class="legend-item"><div class="legend-color legend-B"></div> B </div>
+      <div class="legend-item"><div class="legend-color legend-C"></div> C </div>
+      <div class="legend-item"><div class="legend-color legend-D"></div> D </div>
+      <div class="legend-item"><div class="legend-color legend-E"></div> E </div>
+      <div class="legend-item"><div class="legend-color legend-F"></div> F </div>
+      <div class="legend-item"><div class="legend-color legend-G"></div> G </div>
+    </div>
+  </div>
+
+  <script type="module">
+    Cesium.Ion.defaultAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIzMmI5YmFlNC00ZDVlLTQ0MzMtOWIyNS0xZTBkMmRhNTM2N2MiLCJpZCI6MjY5Nzc1LCJpYXQiOjE3MzcxMzQyNzR9.rGU7EliKSboMs-bNyZN1DCXKNXnKkkJPBFplJxunh_0";
+
+    const retrofitCostTable = {
+      'G': 30000,
+      'F': 25000,
+      'E': 20000,
+      'D': 15000,
+      'C': 12000,
+      'B': 6000,
+      'A': 3000,
+      'A+': 2000,
+      'A++': 1000,
+      'A+++': 0,
+    };
+
+    const allLabels = ['A+++', 'A++', 'A+', 'A', 'B', 'C', 'D', 'E', 'F', 'G'];
+
+    function labelToClass(label) {
+      return label.replace(/\+/g, 'plus');
+    }
+
+    function estimateRetrofitCost(fromLabel, toLabel, electricity, gas) {
+      const baseCostFrom = retrofitCostTable[fromLabel] ?? 0;
+      const baseCostTo = retrofitCostTable[toLabel] ?? 0;
+      let baseCost = Math.max(0, baseCostFrom - baseCostTo);
+
+      const maxElectricity = 5000;
+      const maxGas = 2000;
+
+      const elecRatio = (electricity && electricity > 0) ? Math.min(electricity / maxElectricity, 1) : 0;
+      const gasRatio = (gas && gas > 0) ? Math.min(gas / maxGas, 1) : 0;
+
+      const energyFactor = 0.7 * elecRatio + 0.3 * gasRatio;
+
+      const adjustedCost = baseCost * (1 + energyFactor);
+
+      return Math.round(adjustedCost);
+    }
+
+ function getSubsidyLink(label) {
+  let baseUrl = "https://www.milieucentraal.nl/energie-besparen/isoleren-en-besparen/";
+  let linkText = "🏡 MilieuCentraal: Learn about insulation & savings";
+
+  if (["E", "F", "G"].includes(label)) {
+    baseUrl = "https://www.rvo.nl/subsidies-financiering/seeh";
+    linkText = "💶 SEEH Subsidy Program (RVO)";
+  }
+
+  return `<p><a href="${baseUrl}" target="_blank" rel="noopener noreferrer">${linkText}</a></p>`;
+}
+
+
+
+    function formatNumber(num) {
+      const n = Number(num);
+      if (isNaN(n)) {
+        return "N/A";
+      }
+      return n.toFixed(2);
+    }
+     const labelCounts = {};
+let totalBuildings = 0;
+
+allLabels.forEach(label => labelCounts[label] = 0);
+
+    async function initialize() {
+      const viewer = new Cesium.Viewer("cesiumContainer", {
+        terrainProvider: await Cesium.CesiumTerrainProvider.fromIonAssetId(1),
+        timeline: true,
+        animation: true,
+        shouldAnimate: true,
+      });
+
+      viewer.scene.light = new Cesium.SunLight();
+      viewer.scene.globe.enableLighting = true;
+      viewer.scene.skyAtmosphere.show = true;
+      viewer.scene.skyBox.show = true;
+      viewer.scene.sun.show = true;
+
+      const day = "2025-07-10";
+      const start = Cesium.JulianDate.fromDate(new Date(`${day}T00:00:00Z`));
+      const end = Cesium.JulianDate.fromDate(new Date(`${day}T23:59:59Z`));
+      viewer.clock.startTime = start.clone();
+      viewer.clock.stopTime = end.clone();
+      viewer.clock.currentTime = start.clone();
+      viewer.clock.clockRange = Cesium.ClockRange.LOOP_STOP;
+      viewer.clock.multiplier = 3600;
+
+      viewer.scene.globe.depthTestAgainstTerrain = true;
+
+      const tileset = await Cesium.Cesium3DTileset.fromIonAssetId(3532435);
+
+      const offsetZ = -12;
+      const offsetMatrix = Cesium.Matrix4.fromTranslation(new Cesium.Cartesian3(0, 0, offsetZ));
+      tileset.root.transform = Cesium.Matrix4.multiply(tileset.root.transform, offsetMatrix, new Cesium.Matrix4());
+
+      tileset.style = new Cesium.Cesium3DTileStyle({
+        color: {
+          conditions: [
+            ["${my_results} === 'A+++'", "color('#006837')"],
+            ["${my_results} === 'A++'", "color('#39B54A')"],
+            ["${my_results} === 'A+'", "color('#8BC540')"],
+            ["${my_results} === 'A'", "color('#F4E82E')"],
+            ["${my_results} === 'B'", "color('#F8B919')"],
+            ["${my_results} === 'C'", "color('#F3830E')"],
+            ["${my_results} === 'D'", "color('#EC5125')"],
+            ["${my_results} === 'E'", "color('#DC2929')"],
+            ["${my_results} === 'F'", "color('#A62626')"],
+            ["${my_results} === 'G'", "color('#8C1C1C')"],
+            ["true", "color('#FFFACD')"]
+          ]
+        }
+      });
+
+      viewer.scene.primitives.add(tileset);
+    await viewer.zoomTo(tileset);
+
+// 🟢 Count only when visible (fix for fluctuating total)
+tileset.tileLoad.addEventListener(() => {
+  if (totalBuildings === 0) {
+  setTimeout(() => {
+  countLabelsFromTileset(tileset.root);
+}, 2000); // wait 2 seconds before counting
+
+  }
+});
+
+
+
+// 🔽 Now start defining the UI elements
+// (Duplicate variable declarations removed below)
+
+
+      // Elements
+      const buildingIdEl = document.getElementById("buildingId");
+      const energyLabelEl = document.getElementById("energyLabel");
+      const electricityEl = document.getElementById("electricity");
+      const netElectricityEl = document.getElementById("netElectricity");
+      const gasUsageEl = document.getElementById("gasUsage");
+      const energyUsageFields = document.getElementById("energyUsageFields");
+      const retrofitCostEl = document.getElementById("retrofitCost");
+
+      const subsidyLinkDiv = document.getElementById("subsidyLink");
+      const circleContainer = document.getElementById("energyLabelCircleContainer");
+      const selectAllToggle = document.getElementById("selectAllToggle");
+      const selectAllLabel = document.getElementById("selectAllLabel");
+      const annualSavingsEl = document.getElementById("annualSavings");
+const paybackPeriodEl = document.getElementById("paybackPeriod");
+const co2SavingsEl = document.getElementById("co2Savings");
+const benefitChartCtx = document.getElementById("benefitChart").getContext("2d");
+
+
+      let currentLabel = null;
+      let selectedTargetLabel = null;
+      let selectedFeature = null;
+      let selectAllMode = false;
+      let selectAllFeatures = [];
+
+      // To track all highlighted features in selectAll mode
+      let highlightedFeatures = [];
+
+      function createLabelButtons() {
+        circleContainer.innerHTML = '';
+        allLabels.forEach(label => {
+          const btn = document.createElement('div');
+          btn.className = 'energyLabelCircle ' + labelToClass(label);
+          btn.textContent = label;
+          btn.title = `Select retrofit label: ${label}`;
+          btn.onclick = () => {
+            selectedTargetLabel = label;
+            updateSelectedButton();
+            updateRetrofitCost();
+          };
+          circleContainer.appendChild(btn);
+        });
+      }
+
+      function updateSelectedButton() {
+        const buttons = circleContainer.children;
+        for (let btn of buttons) {
+          if (btn.textContent === selectedTargetLabel) {
+            btn.classList.add('selected');
+          } else {
+            btn.classList.remove('selected');
+          }
+        }
+      }
+
+      function highlightFeature(feature, highlight) {
+        if (!feature) return;
+        if (highlight) {
+          feature.color = new Cesium.Color(0.4, 0.7, 1.0, 0.6); // same blue highlight
+        } else {
+          if (feature.originalColor) {
+            feature.color = feature.originalColor.clone();
+          }
+        }
+      }
+
+      function clearHighlightedFeatures() {
+        highlightedFeatures.forEach(f => highlightFeature(f, false));
+        highlightedFeatures = [];
+      }
+
+      function updateRetrofitCost() {
+        if (!currentLabel || !selectedTargetLabel) {
+          retrofitCostEl.textContent = "0";
+          subsidyLinkDiv.innerHTML = "";
+          return;
+        }
+
+        if (!selectAllMode) {
+          if (!selectedFeature) {
+            retrofitCostEl.textContent = "0";
+            subsidyLinkDiv.innerHTML = "";
+            return;
+          }
+  const elec = selectedFeature.getProperty("AEC_kWh");
+const gas = selectedFeature.getProperty("ANGC_M3");
+const cost = estimateRetrofitCost(currentLabel, selectedTargetLabel, elec, gas);
+
+const { euroSavings, co2Savings } = estimateAnnualBenefits(elec, gas);
+
+retrofitCostEl.textContent = cost.toLocaleString();
+subsidyLinkDiv.innerHTML = getSubsidyLink(currentLabel);
+
+// Update chart
+benefitChart.data.datasets[0].data = [cost, euroSavings, co2Savings];
+benefitChart.update();
+
+annualSavingsEl.textContent = euroSavings.toLocaleString();
+paybackPeriodEl.textContent = euroSavings > 0 ? (cost / euroSavings).toFixed(1) : "–";
+co2SavingsEl.textContent = co2Savings.toLocaleString();
+
+
+        } else {
+          if (!selectAllFeatures.length) {
+            retrofitCostEl.textContent = "0";
+            subsidyLinkDiv.innerHTML = "";
+            buildingIdEl.textContent = "No buildings found with label " + currentLabel;
+            energyUsageFields.style.display = "none";
+            return;
+          }
+          let totalCost = 0;
+          for (let f of selectAllFeatures) {
+            const elec = f.getProperty("AEC_kWh");
+            const gas = f.getProperty("ANGC_M3");
+            totalCost += estimateRetrofitCost(currentLabel, selectedTargetLabel, elec, gas);
+          }
+          retrofitCostEl.textContent = totalCost.toLocaleString();
+subsidyLinkDiv.innerHTML = getSubsidyLink(currentLabel);
+buildingIdEl.textContent = `${selectAllFeatures.length} buildings selected with label ${currentLabel}`;
+energyUsageFields.style.display = "none";
+
+let totalSavings = 0;
+let totalCO2 = 0;
+for (let f of selectAllFeatures) {
+  const elec = f.getProperty("AEC_kWh");
+  const gas = f.getProperty("ANGC_M3");
+  const { euroSavings, co2Savings } = estimateAnnualBenefits(elec, gas);
+  totalSavings += euroSavings;
+  totalCO2 += co2Savings;
+}
+
+annualSavingsEl.textContent = totalSavings.toLocaleString();
+paybackPeriodEl.textContent = totalSavings > 0 ? (totalCost / totalSavings).toFixed(1) : "–";
+co2SavingsEl.textContent = totalCO2.toLocaleString();
+
+        }
+        function estimateAnnualBenefits(elec, gas, reductionRates = { electricity: 0.3, gas: 0.4 }) {
+  const elecSaved = (elec || 0) * reductionRates.electricity;
+  const gasSaved = (gas || 0) * reductionRates.gas;
+
+  const electricityRate = 0.40; // €/kWh
+  const gasRate = 1.30;         // €/m³
+
+  const euroSavings = (elecSaved * electricityRate) + (gasSaved * gasRate);
+  const co2Savings = (elecSaved * 0.42) + (gasSaved * 1.89); // kg/year
+
+  return {
+    euroSavings: Math.round(euroSavings),
+    co2Savings: Math.round(co2Savings)
+  };
+}
+
+      }
+
+      function collectFeaturesByLabel(label) {
+        let results = [];
+
+        function collect(node) {
+          if (node.content && node.content.featuresLength) {
+            for (let i = 0; i < node.content.featuresLength; i++) {
+              const f = node.content.getFeature(i);
+              if (f && f.getProperty("my_results") === label) {
+                results.push(f);
+              }
+            }
+          }
+          if (node.children && node.children.length) {
+            node.children.forEach(collect);
+          }
+        }
+        collect(tileset.root);
+        return results;
+      }
+
+      selectAllToggle.addEventListener('change', () => {
+        if (!currentLabel) {
+          selectAllToggle.checked = false;
+          return;
+        }
+        selectAllMode = selectAllToggle.checked;
+
+        // Clear previous highlights first
+        clearHighlightedFeatures();
+
+        if (selectAllMode) {
+          selectAllFeatures = collectFeaturesByLabel(currentLabel);
+         if (selectAllFeatures.length) {
+  selectAllFeatures.forEach(f => {
+    if (!f.originalColor) {
+      f.originalColor = f.color.clone();
+    }
+    highlightFeature(f, true);
+    highlightedFeatures.push(f);  // <-- THIS IS THE KEY LINE!
+  });
+}
+
+          selectedFeature = null;
+          selectedTargetLabel = null;
+          energyLabelEl.textContent = currentLabel || "Unknown";
+          buildingIdEl.textContent = `${selectAllFeatures.length} buildings selected with label ${currentLabel}`;
+          updateRetrofitCost();
+          energyUsageFields.style.display = "none";  // ✅ Hides usage fields when in Select All mode
+
+          
+        } else {
+          // Deactivate select all mode: reset highlights & UI
+          selectAllFeatures = [];
+          buildingIdEl.textContent = "";
+          retrofitCostEl.textContent = "0";
+          subsidyLinkDiv.innerHTML = "";
+          selectedTargetLabel = null;
+          updateSelectedButton();
+
+          energyUsageFields.style.display = "block";
+
+          if (selectedFeature) {
+            // restore highlight on selectedFeature only
+            highlightFeature(selectedFeature, true);
+            currentLabel = selectedFeature.getProperty("my_results");
+            updateLabelSummary(currentLabel);
+
+            energyLabelEl.textContent = currentLabel || "Unknown";
+            electricityEl.textContent = formatNumber(selectedFeature.getProperty("AEC_kWh"));
+            netElectricityEl.textContent = formatNumber(selectedFeature.getProperty("ANEC_kWh"));
+            gasUsageEl.textContent = formatNumber(selectedFeature.getProperty("ANGC_M3"));
+          } else {
+            currentLabel = null;
+            energyLabelEl.textContent = "N/A";
+            electricityEl.textContent = "N/A";
+            netElectricityEl.textContent = "N/A";
+            gasUsageEl.textContent = "N/A";
+          }
+        }
+      });
+
+      viewer.screenSpaceEventHandler.setInputAction(function (click) {
+        const picked = viewer.scene.pick(click.position);
+
+        if (picked && picked.getProperty) {
+          if (selectAllMode) {
+            // Turn off select all toggle & clear highlights on building single click
+            selectAllToggle.checked = false;
+            selectAllMode = false;
+            clearHighlightedFeatures();
+            selectAllFeatures = [];
+          }
+
+          if (selectedFeature) {
+            highlightFeature(selectedFeature, false);
+            selectedFeature = null;
+          }
+
+          if (picked instanceof Cesium.Cesium3DTileFeature) {
+            selectedFeature = picked;
+            if (!selectedFeature.originalColor) {
+              selectedFeature.originalColor = selectedFeature.color.clone();
+            }
+            highlightFeature(selectedFeature, true);
+
+            currentLabel = picked.getProperty("my_results");
+            console.log("Clicked building label is:", currentLabel);
+
+            selectedTargetLabel = null;
+
+            buildingIdEl.textContent = "";
+            energyLabelEl.textContent = currentLabel || "Unknown";
+            electricityEl.textContent = formatNumber(picked.getProperty("AEC_kWh"));
+            netElectricityEl.textContent = formatNumber(picked.getProperty("ANEC_kWh"));
+            gasUsageEl.textContent = formatNumber(picked.getProperty("ANGC_M3"));
+            energyUsageFields.style.display = "block";
+
+            updateSelectedButton();
+            updateRetrofitCost();
+            updateLabelSummary(currentLabel);
+
+          }
+        }
+      }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+      const benefitChart = new Chart(benefitChartCtx, {
+  type: 'bar',
+  data: {
+    labels: ['Retrofit Cost', 'Annual Savings', 'CO₂ Savings'],
+    datasets: [{
+      label: '€ / kg CO₂',
+      data: [0, 0, 0],
+      backgroundColor: ['#f44336', '#4caf50', '#2196f3']
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: {
+        label: (ctx) => {
+          const label = ctx.dataset.label || '';
+          const val = ctx.raw;
+          if (ctx.dataIndex === 2) return `${label}: ${val} kg`;
+          return `${label}: €${val}`;
+        }
+      }}
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: { color: '#ccc' },
+        title: { display: true, text: '€ or kg', color: '#ccc' }
+      },
+      x: {
+        ticks: { color: '#ccc' }
+      }
+    }
+  }
+});
+
+      createLabelButtons();
+
+      // Initial clear
+      energyLabelEl.textContent = "N/A";
+      electricityEl.textContent = "N/A";
+      netElectricityEl.textContent = "N/A";
+      gasUsageEl.textContent = "N/A";
+      retrofitCostEl.textContent = "0";
+      subsidyLinkDiv.innerHTML = "";
+
+    }
+    function countLabelsFromTileset(tilesetRoot) {
+  allLabels.forEach(label => labelCounts[label] = 0);
+  totalBuildings = 0;
+
+  function traverse(node) {
+    if (node.content && node.content.featuresLength) {
+      for (let i = 0; i < node.content.featuresLength; i++) {
+        const f = node.content.getFeature(i);
+        const label = f.getProperty("my_results");
+        if (labelCounts[label] !== undefined) {
+          labelCounts[label]++;
+          totalBuildings++;
+        }
+      }
+    }
+    if (node.children && node.children.length) {
+      node.children.forEach(traverse);
+    }
+  }
+
+  traverse(tilesetRoot);
+}
+function updateLabelSummary(currentLabel) {
+  const summaryEl = document.getElementById("labelSummary");
+  if (currentLabel && labelCounts[currentLabel] !== undefined) {
+    const count = labelCounts[currentLabel];
+    summaryEl.textContent = `${count.toLocaleString()} buildings of ${totalBuildings.toLocaleString()} have the label ${currentLabel}`;
+  } else {
+    summaryEl.textContent = "";
+  }
+}
+
+    initialize();
+  </script>
+</body>
+</html>
